@@ -1,0 +1,2 @@
+ckanext-harvest>=0.2
+amara>=2.0a4

@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: socrata-harvest
+Version: 0.1
+Summary: Harvesting module to catalog Socrata datasets in CKAN
+Home-page: http://ckan.org/wiki/Extensions
+Author: Socrata
+Author-email: will.pugh@socrata.com
+License: mit
+Description: 	
+Platform: UNKNOWN
