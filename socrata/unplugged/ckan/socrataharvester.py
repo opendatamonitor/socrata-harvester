@@ -205,6 +205,9 @@ class SocrataHarvester(HarvesterBase):
             package_dict = d.convertViewXml(harvest_object.id, harvest_object.source.url.rstrip('/'), harvest_object.content)
             package_dict.update({"catalogue_url":str(harvest_object.source.url.rstrip('/'))})
             package_dict.update({"platform":"socrata"})
+            if 'category' in package_dict.keys():
+               package_dict['extras'].update({'category':package_dict['category']})
+               del package_dict['category']
             log.debug(package_dict)
             if package_dict['id'] not in ids:
                 metadata_created=datetime.datetime.now()
