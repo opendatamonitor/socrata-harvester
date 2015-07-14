@@ -270,3 +270,4 @@ class SocrataHarvester(HarvesterBase):
             self._save_object_error('%r'%e,harvest_object,'Import')
             print('ExceptionExceptionExceptionExceptionExceptionExceptionExceptionExceptionExceptionException')
 
+
