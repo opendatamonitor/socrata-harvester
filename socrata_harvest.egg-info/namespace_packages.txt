@@ -1,3 +1,0 @@
-socrata
-socrata.unplugged
-socrata.unplugged.ckan
