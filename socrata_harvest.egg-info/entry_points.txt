@@ -1,8 +1,0 @@
-
-    [ckan.plugins]
-	# Add plugins here, eg
-	harvest=ckanext.harvest.plugin:Harvest
-	socrata_harvest=socrata.unplugged.ckan:SocrataHarvester
-	[paste.paster_command]
-	harvester = ckanext.harvest.commands.harvester:Harvester
-	
