@@ -5,6 +5,7 @@ A harvester to allow CKAN directories to keep in sync with a catalogue that prov
 
 In order to use this tool, you need to have the ODM CKAN harvester extension (https://github.com/opendatamonitor/ckanext-harvestodm)
 installed and loaded for your CKAN instance.
+Tested with CKAN v2.2 (http://docs.ckan.org/en/ckan-2.2/).
 
 
 General
