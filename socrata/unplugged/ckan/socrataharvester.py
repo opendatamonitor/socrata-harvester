@@ -26,12 +26,14 @@ mongoport=config['ckan:odm_extensions']['mongoport']
 client=pymongo.MongoClient(str(mongoclient), int(mongoport))
 db=client.odm
 socrata_db=db.odm
-document=socrata_db.aggregate([{ "$group" :{"_id" : "$id", "elements" : { "$sum" : 1}}},{"$match": {"elements": {"$gt":0}}},{"$sort":{"elements":-1}}])
-j=0
-ids=[]
-while j<len(document['result']):
-  ids.append(document['result'][j]['_id'])
-  j+=1
+db_fetch_temp=db.fetch_temp
+db_jobs=db.jobs
+#document=socrata_db.aggregate([{ "$group" :{"_id" : "$id", "elements" : { "$sum" : 1}}},{"$match": {"elements": {"$gt":0}}},{"$sort":{"elements":-1}}])
+#j=0
+#ids=[]
+#while j<len(document['result']):
+  #ids.append(document['result'][j]['_id'])
+  #j+=1
 
 class SocrataHarvester(HarvesterBase):
     '''Harvests datasets from Socrata
@@ -125,9 +127,63 @@ class SocrataHarvester(HarvesterBase):
 
         adaptorInstance = socrataAdaptor()
         package_ids = adaptorInstance.listDatasetIds(dcatUrl)
-        print('****')
-        print(len(package_ids))
-        print(package_ids)
+        #print('****')
+        #print(len(package_ids))
+        #print(package_ids)
+
+
+        ##load existing datasets names and ids from mongoDb
+        datasets=list(socrata_db.find({'catalogue_url':harvest_job.source.url.rstrip('/')}))
+        datasets_ids=[]
+        datasets_names=[]
+        j=0
+        while j<len(datasets):
+		  datasets_ids.append(datasets[j]['id'])
+		  datasets_names.append(datasets[j]['name'])
+		  j+=1
+        #print(datasets_names)
+        
+
+
+
+
+        ##check for deleted datasets that exist in mongo
+        count_pkg_ids=0
+        while count_pkg_ids<len(package_ids):
+		  temp_pckg_id=package_ids[count_pkg_ids]
+		  if temp_pckg_id in datasets_ids:
+			datasets_ids.remove(temp_pckg_id)
+		  if temp_pckg_id in datasets_names:
+			datasets_names.remove(temp_pckg_id)
+		  count_pkg_ids+=1
+        if len(datasets_names)<len(datasets_ids):
+		  #print(datasets_names)
+		  j=0
+		  #print(harvest_job.source.url.rstrip('/'))
+		  while j<len(datasets_names):
+			i=0
+			while i<len(datasets):
+			  if datasets_names[j] in datasets[i]['name']:
+				document=datasets[i]
+				document.update({"deleted_dataset":True})
+				socrata_db.save(document)
+			  i+=1
+
+			j+=1
+        else:
+		  #print(datasets_ids)
+		  j=0
+		  while j<len(datasets_ids):
+			i=0
+			while i<len(datasets):
+			  if datasets_ids[j] in datasets[i]['id']:
+				document=datasets[i]
+				document.update({"deleted_dataset":True})
+				socrata_db.save(document)
+			  i+=1
+
+			j+=1
+
 
         try:
             object_ids = []
@@ -158,8 +214,8 @@ class SocrataHarvester(HarvesterBase):
         self._set_config(harvest_object.job.source.config)
 
         fetchUrl = "%s/api/views/%s.xml" % (harvest_object.source.url.rstrip('/'), harvest_object.guid)
-        print('_________FETCH URL___________')
-        print(fetchUrl)
+        #print('_________FETCH URL___________')
+        #print(fetchUrl)
         log.debug(fetchUrl)
 
 
@@ -199,30 +255,115 @@ class SocrataHarvester(HarvesterBase):
         log.debug(harvest_object.job.source.config)
         try:
             #log.debug(harvest_object.content)
-
+            language=""
+            try:
+            	doc=db_jobs.find_one({"cat_url":str(base_url)})
+            	language=doc['language']
+            except:pass
+	
             d = socrataAdaptor()
             log.debug("Converting View")
             package_dict = d.convertViewXml(harvest_object.id, harvest_object.source.url.rstrip('/'), harvest_object.content)
             package_dict.update({"catalogue_url":str(harvest_object.source.url.rstrip('/'))})
             package_dict.update({"platform":"socrata"})
+            package_dict.update({"language":language})
+            if 'notes_rendered' in package_dict.keys():
+                package_dict.update({"notes":package_dict['notes_rendered']})
+                del package_dict['notes_rendered']
             if 'category' in package_dict.keys():
                package_dict['extras'].update({'category':package_dict['category']})
                del package_dict['category']
             log.debug(package_dict)
-            if package_dict['id'] not in ids:
-                metadata_created=datetime.datetime.now()
-                package_dict.update({"metadata_created":str(metadata_created)})
-                socrata_db.save(package_dict)
-                log.info('Metadata saved succesfully to MongoDb.')
+            mainurl=str(harvest_object.source.url.rstrip('/'))	
+            #if package_dict['id'] not in ids:
+            document=socrata_db.find_one({"catalogue_url":harvest_object.source.url.rstrip('/'),'id':package_dict['id']})
+            if document==None:
+                  metadata_created=datetime.datetime.now()
+                  package_dict.update({"metadata_created":str(metadata_created)})
+                  socrata_db.save(package_dict)
+                  log.info('Metadata saved succesfully to MongoDb.')
+                  fetch_document=db_fetch_temp.find_one()
+		  if fetch_document==None:
+			fetch_document={}
+			fetch_document.update({"cat_url":mainurl})
+			fetch_document.update({"new":1})
+			fetch_document.update({"updated":0})
+			db_fetch_temp.save(fetch_document)
+		  else:
+			if mainurl==fetch_document['cat_url']:
+			  new_count=fetch_document['new']
+			  new_count+=1
+			  fetch_document.update({"new":new_count})
+			  db_fetch_temp.save(fetch_document)
+			else:
+			  last_cat_url=fetch_document['cat_url']
+			  doc=db_jobs.find_one({'cat_url':fetch_document['cat_url']})
+			  if 'new' in fetch_document.keys():
+				new=fetch_document['new']
+				if 'new' in doc.keys():
+				  last_new=doc['new']
+				  doc.update({"last_new":last_new})
+				doc.update({"new":new})
+				db_jobs.save(doc)
+			  if 'updated' in fetch_document.keys():
+				updated=fetch_document['updated']
+				if 'updated' in doc.keys():
+				  last_updated=doc['updated']
+				  doc.update({"last_updated":last_updated})
+				doc.update({"updated":updated})
+				db_jobs.save(doc)
+			  fetch_document.update({"cat_url":mainurl})
+			  fetch_document.update({"new":1})
+			  fetch_document.update({"updated":0})
+			  db_fetch_temp.save(fetch_document)
             else:
-                document=socrata_db.find_one({"id":package_dict['id']})
-                met_created=document['metadata_created']
-                package_dict.update({'metadata_created':met_created})
-                package_dict.update({'metadata_updated':str(datetime.datetime.now())})
-                package_dict.update({'updated_dataset':True})
-                socrata_db.remove({"id":package_dict['id']})
-                socrata_db.save(package_dict)
-                log.info('Metadata updated succesfully to MongoDb.')
+                #document=socrata_db.find_one({"id":package_dict['id']})
+                  met_created=document['metadata_created']
+		  if 'copied' in document.keys():
+			package_dict.update({'copied':document['copied']})
+                  package_dict.update({'metadata_created':met_created})
+                  package_dict.update({'metadata_updated':str(datetime.datetime.now())})
+                  package_dict.update({'updated_dataset':True})
+                  #existing_dataset=socrata_db.find_one({"id":package_dict['id'],"catalogue_url":mainurl})
+                  objectid=document['_id']
+                  package_dict.update({'_id':objectid})		
+                  socrata_db.save(package_dict)
+                  log.info('Metadata updated succesfully to MongoDb.')
+                  fetch_document=db_fetch_temp.find_one()
+		  if fetch_document==None:
+			fetch_document={}
+			fetch_document.update({"cat_url":mainurl})
+			fetch_document.update({"updated":1})
+			fetch_document.update({"new":0})
+			db_fetch_temp.save(fetch_document)
+		  else:
+			if mainurl==fetch_document['cat_url']:
+			  updated_count=fetch_document['updated']
+			  updated_count+=1
+			  fetch_document.update({"updated":updated_count})
+			  db_fetch_temp.save(fetch_document)
+			else:
+			  last_cat_url=fetch_document['cat_url']
+			  doc=db_jobs.find_one({'cat_url':fetch_document['cat_url']})
+			  if 'new' in fetch_document.keys():
+				new=fetch_document['new']
+				if 'new' in doc.keys():
+				  last_new=doc['new']
+				  doc.update({"last_new":last_new})
+				doc.update({"new":new})
+				db_jobs.save(doc)
+			  if 'updated' in fetch_document.keys():
+				updated=fetch_document['updated']
+				if 'updated' in doc.keys():
+				  last_updated=doc['updated']
+				  doc.update({"last_updated":last_updated})
+				doc.update({"updated":updated})
+				db_jobs.save(doc)
+			  fetch_document.update({"cat_url":mainurl})
+			  fetch_document.update({"updated":1})
+			  fetch_document.update({"new":0})
+			  db_fetch_temp.save(fetch_document)	
+
             # Set default tags if needed
             default_tags = self.config.get('default_tags',[])
             if default_tags:
@@ -265,9 +406,9 @@ class SocrataHarvester(HarvesterBase):
         except ValidationError,e:
             self._save_object_error('Invalid package with GUID %s: %r' % (harvest_object.guid, e.error_dict),
                     harvest_object, 'Import')
-            print('ValidationErrorValidationErrorValidationErrorValidationErrorValidationErrorValidationError')
+            print('ValidationErrorr')
         except Exception, e:
             self._save_object_error('%r'%e,harvest_object,'Import')
-            print('ExceptionExceptionExceptionExceptionExceptionExceptionExceptionExceptionExceptionException')
+            print('Exception')
 
 
