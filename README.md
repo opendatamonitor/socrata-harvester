@@ -37,7 +37,7 @@ To build and use this plugin, simply:
 Then you will need to update your CKAN configuration to include the new harvester.  This will mean adding the
 socrata_harvester plugin as a plugin.  E.g.
 
-    ckan.plugins = harvest socrata_harvest
+    ckan.plugins = harvestodm socrata_harvest
 
     
 Using
