@@ -21,7 +21,7 @@ Implementation
 
 Main modifications are:
 
-add extra metadata fields (language, country, catalogue_url, platform) or use existing ones in different way (metadata_created and metadata_updated are synchronised 
+* add extra metadata fields (language, country, catalogue_url, platform) or use existing ones in different way (metadata_created and metadata_updated are synchronised 
 to our platform's timings overriding the client's) check whether a metadata record is already present in the MongoDB database, and accordingly create or update
 
 Building
