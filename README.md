@@ -53,8 +53,11 @@ After setting this up, you should be able to go to:
     http://localhost:5000/harvest
 
 In case that you don't have the ckanext-htmlharvest extension installed (https://github.com/opendatamonitor/ckanext-htmlharvest)
+
 Then go to:
+    
     http://localhost:5000/harvest/new
+
 And have a new "Socrata" harvest type show up when creating sources.
 
 
