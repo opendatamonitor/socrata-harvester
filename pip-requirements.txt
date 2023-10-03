@@ -1,5 +1,5 @@
 ckanext-harvest>=0.2
 amara>=2.0a4
-urllib3==1.26.5
+urllib3==1.26.17
 configparser==3.5.0b2
 pymongo==2.8.1
